@@ -1,49 +1,87 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import plotly.express as px
-import joblib
+import plotly.graph_objects as go
 
+
+# ══════════════════════════════════════════════
+# PAGE CONFIG
+# ══════════════════════════════════════════════
 st.set_page_config(
-    page_title="Fazri | Data & AI Portfolio",
-    page_icon="🤖",
+    page_title="My Portfolio with Streamlit",
+    page_icon="🏠",
     layout="wide",
 )
 
 
-@st.cache_data
-def load_model():
-    bundle = joblib.load("churn_model.joblib")
-    return bundle["model"], bundle["scaler"], bundle["features"]
+# ══════════════════════════════════════════════
+# CONSTANTS, DATA LOADER, & MODEL TRAINER
+# ══════════════════════════════════════════════
+FITUR = [
+    "OverallQual", "GrLivArea", "GarageCars", "GarageArea",
+    "TotalBsmtSF", "1stFlrSF", "FullBath", "YearBuilt",
+    "YearRemodAdd", "TotRmsAbvGrd", "Fireplaces", "LotArea",
+]
 
 
 @st.cache_data
 def load_data():
-    return pd.read_csv("data_churn.csv")
+    return pd.read_csv("data_house.csv")
 
 
-def prepare_features(df_raw, feature_order):
-    data = df_raw.copy()
-    if "customer_id" in data.columns:
-        data = data.drop(columns=["customer_id"])
-    if "churn" in data.columns:
-        data = data.drop(columns=["churn"])
-    data["gender"] = data["gender"].map({"Male": 1, "Female": 0})
-    data = pd.get_dummies(data, columns=["country"], drop_first=True)
-    for col in feature_order:
-        if col not in data.columns:
-            data[col] = 0
-    data = data[feature_order]
+def prepare_features(df):
+    data = df[FITUR].copy()
+    for kolom in FITUR:
+        if data[kolom].isnull().sum() > 0:
+            data[kolom] = data[kolom].fillna(data[kolom].median())
+    data["TotalSF"] = data["TotalBsmtSF"] + data["GrLivArea"]
     return data
 
 
-model, scaler, FEATURES = load_model()
+@st.cache_resource
+def train_model():
+    df = pd.read_csv("data_house.csv")
+    X = prepare_features(df)
+    y = df["SalePrice"]
 
-tab_home, tab_ml, tab_eda = st.tabs([
-    "🏠 Home",
-    "🤖 Churn Predictor",
-    "📊 Data & Model Insights",
-])
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42
+    )
+
+    model = RandomForestRegressor(
+        n_estimators=200,
+        max_depth=15,
+        min_samples_split=5,
+        random_state=42,
+    )
+    model.fit(X_train, y_train)
+
+    y_pred = model.predict(X_test)
+    metrics = {
+        "rmse": float(np.sqrt(mean_squared_error(y_test, y_pred))),
+        "mae": float(mean_absolute_error(y_test, y_pred)),
+        "r2": float(r2_score(y_test, y_pred)),
+    }
+    feature_importance = dict(zip(X.columns, model.feature_importances_.tolist()))
+
+    return model, metrics, feature_importance, y_test.tolist(), y_pred.tolist()
+
+
+# load data + train model (cached, so cuma jalan sekali)
+df_house = load_data()
+model, metrics, feature_importance, y_test, y_pred = train_model()
+
+
+# ══════════════════════════════════════════════
+# TABS
+# ══════════════════════════════════════════════
+tab_home, tab_predict, tab_insight = st.tabs(
+    ["🏠 Home", "🤖 House Price Predictor", "📊 Data & Model Insights"]
+)
 
 
 # ══════════════════════════════════════════════
@@ -88,15 +126,15 @@ with tab_home:
 
     with p1:
         with st.container(border=True):
-            st.markdown("### 📉 Bank Customer Churn")
+            st.markdown("### 🏠 House Price Prediction")
             st.write("""
-            I built a model to spot which bank customers are about to leave. Worked
-            with 10,000 records, cleaned the data, tried a few models, and checked
-            which features matter most. You can test the live version in the Churn
-            Predictor tab.
+            I built a regression model that predicts house sale prices using the
+            Kaggle House Prices dataset. Cleaned messy real-world data with missing
+            values, picked the most useful features, and tuned a Random Forest to
+            get the lowest error. You can test the live version in the Predictor tab.
             """)
-            st.write("Recall **0.65** · ROC-AUC **0.86**")
-            st.info("👉 Try it in the **🤖 Churn Predictor** tab.")
+            st.write("RMSE **$29.8K** · R² **0.88**")
+            st.info("👉 Try it in the **🤖 House Price Predictor** tab.")
 
     with p2:
         with st.container(border=True):
@@ -122,254 +160,223 @@ with tab_home:
 
 
 # ══════════════════════════════════════════════
-# TAB 2 — CHURN PREDICTOR
+# TAB 2 — HOUSE PRICE PREDICTOR
 # ══════════════════════════════════════════════
-with tab_ml:
-
-    st.title("🤖 Bank Customer Churn Predictor")
-    st.divider()
+with tab_predict:
+    st.header("🏠 House Price Predictor")
+    st.markdown(
+        "Predict house sale price based on property features. "
+        "Use single mode for one prediction, or batch mode for multiple houses via CSV."
+    )
 
     mode = st.radio(
-        "Choose prediction mode:",
-        ["Single customer", "Batch upload (CSV)"],
+        "Prediction Mode:",
+        ["Single Property", "Batch Upload (CSV)"],
         horizontal=True,
     )
 
-    # ── MODE 1: satu customer ─────────────────
-    if mode == "Single customer":
-        col_inputs, col_result = st.columns(2)
+    st.divider()
 
-        with col_inputs:
-            st.subheader("Customer Details")
-            credit_score = st.number_input("Credit Score", 300, 900, 650)
-            age = st.slider("Age", 18, 95, 40)
-            tenure = st.slider("Tenure (years with bank)", 0, 10, 5)
-            balance = st.number_input("Balance", 0.0, 300000.0, 75000.0, step=1000.0)
-            products_number = st.slider("Number of Products", 1, 4, 1)
-            estimated_salary = st.number_input("Estimated Salary", 0.0, 200000.0, 100000.0, step=1000.0)
-            gender = st.selectbox("Gender", ["Male", "Female"])
-            country = st.selectbox("Country", ["France", "Germany", "Spain"])
-            credit_card = st.selectbox("Has Credit Card?", ["Yes", "No"])
-            active_member = st.selectbox("Active Member?", ["Yes", "No"])
+    # ============ MODE 1: SINGLE ============
+    if mode == "Single Property":
+        col1, col2 = st.columns(2)
 
-            predict_btn = st.button("Predict Churn", use_container_width=True)
+        with col1:
+            overall_qual = st.slider("Overall Quality (1-10)", 1, 10, 7)
+            gr_liv_area = st.number_input("Above-ground Living Area (sqft)", 500, 6000, 1500)
+            garage_cars = st.slider("Garage Capacity (cars)", 0, 4, 2)
+            garage_area = st.number_input("Garage Area (sqft)", 0, 1500, 500)
+            total_bsmt_sf = st.number_input("Basement Area (sqft)", 0, 3000, 900)
+            first_flr_sf = st.number_input("1st Floor Area (sqft)", 300, 4000, 1000)
 
-        with col_result:
-            st.subheader("Prediction Result")
+        with col2:
+            full_bath = st.slider("Full Bathrooms", 0, 4, 2)
+            year_built = st.number_input("Year Built", 1870, 2024, 2000)
+            year_remod = st.number_input("Year Remodeled", 1950, 2024, 2005)
+            tot_rms = st.slider("Total Rooms Above Grade", 2, 14, 7)
+            fireplaces = st.slider("Number of Fireplaces", 0, 4, 1)
+            lot_area = st.number_input("Lot Area (sqft)", 1000, 50000, 9000)
 
-            if predict_btn:
-                row = pd.DataFrame([{
-                    "credit_score": credit_score,
-                    "country": country,
-                    "gender": gender,
-                    "age": age,
-                    "tenure": tenure,
-                    "balance": balance,
-                    "products_number": products_number,
-                    "credit_card": 1 if credit_card == "Yes" else 0,
-                    "active_member": 1 if active_member == "Yes" else 0,
-                    "estimated_salary": estimated_salary,
-                }])
+        if st.button("Predict Price", type="primary"):
+            input_data = pd.DataFrame([{
+                "OverallQual": overall_qual,
+                "GrLivArea": gr_liv_area,
+                "GarageCars": garage_cars,
+                "GarageArea": garage_area,
+                "TotalBsmtSF": total_bsmt_sf,
+                "1stFlrSF": first_flr_sf,
+                "FullBath": full_bath,
+                "YearBuilt": year_built,
+                "YearRemodAdd": year_remod,
+                "TotRmsAbvGrd": tot_rms,
+                "Fireplaces": fireplaces,
+                "LotArea": lot_area,
+                "TotalSF": total_bsmt_sf + gr_liv_area,
+            }])
 
-                X = prepare_features(row, FEATURES)
-                proba = model.predict_proba(scaler.transform(X))[0][1]
-                pred = model.predict(scaler.transform(X))[0]
+            prediction = model.predict(input_data)[0]
 
-                if pred == 1:
-                    st.error("This customer is likely to CHURN")
-                else:
-                    st.success("This customer is likely to STAY")
+            st.success(f"Predicted Sale Price: **${prediction:,.2f}**")
 
-                st.metric("Churn Probability", f"{proba*100:.1f}%")
-                st.progress(float(proba))
-
-                if proba > 0.5:
-                    st.write("High risk of leaving. Might be worth a retention offer.")
-                else:
-                    st.write("Low risk. This customer looks stable.")
+            median_price = df_house["SalePrice"].median()
+            if prediction > median_price:
+                st.info(f"💎 Above median (${median_price:,.0f}) — premium property")
             else:
-                st.info("Fill in the details on the left, then click Predict Churn.")
+                st.info(f"💰 Below median (${median_price:,.0f}) — affordable property")
 
-    # ── MODE 2: upload csv ────────────────────
+    # ============ MODE 2: BATCH UPLOAD ============
     else:
-        st.subheader("Upload Customer Data")
-        st.write("Upload a CSV with customer data to score many customers at once. "
-                 "It should have the same columns as the original dataset (you can "
-                 "use sample_upload.csv from the project folder to try it).")
+        st.markdown("Upload CSV with these 12 columns:")
+        st.code(", ".join(FITUR), language=None)
 
-        uploaded = st.file_uploader("Choose a CSV file", type="csv")
+        sample_csv = df_house[FITUR].head(5).to_csv(index=False)
+        st.download_button(
+            "📥 Download Sample CSV",
+            sample_csv,
+            "sample_upload.csv",
+            "text/csv",
+        )
+
+        uploaded = st.file_uploader("Upload your CSV file", type=["csv"])
 
         if uploaded is not None:
-            df_upload = pd.read_csv(uploaded)
-            st.write(f"Loaded **{len(df_upload)} rows**")
-            st.dataframe(df_upload.head(), use_container_width=True)
+            try:
+                df_input = pd.read_csv(uploaded)
 
-            if st.button("Run Prediction", use_container_width=True):
-                X = prepare_features(df_upload, FEATURES)
-                proba = model.predict_proba(scaler.transform(X))[:, 1]
-                pred = model.predict(scaler.transform(X))
+                missing = [c for c in FITUR if c not in df_input.columns]
+                if missing:
+                    st.error(f"Missing required columns: {', '.join(missing)}")
+                else:
+                    st.success(f"Loaded {len(df_input)} rows")
+                    st.dataframe(df_input.head(), use_container_width=True)
 
-                result = df_upload.copy()
-                result["Churn_Prediction"] = ["Churn" if p == 1 else "Stay" for p in pred]
-                result["Churn_Probability"] = [f"{p*100:.1f}%" for p in proba]
+                    if st.button("Run Batch Prediction", type="primary"):
+                        data = df_input[FITUR].copy()
+                        for col in FITUR:
+                            if data[col].isnull().sum() > 0:
+                                data[col] = data[col].fillna(data[col].median())
+                        data["TotalSF"] = data["TotalBsmtSF"] + data["GrLivArea"]
 
-                st.divider()
-                st.subheader("Prediction Results")
+                        predictions = model.predict(data)
 
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Total Customers", len(result))
-                c2.metric("Predicted Churn", int(sum(pred)))
-                c3.metric("Churn Rate", f"{sum(pred)/len(pred)*100:.1f}%")
+                        result = df_input.copy()
+                        result["Predicted_Price"] = predictions
 
-                st.dataframe(result, use_container_width=True)
+                        st.success(f"Predicted {len(result)} properties")
+                        st.dataframe(
+                            result[["OverallQual", "GrLivArea", "YearBuilt", "Predicted_Price"]]
+                            .style.format({"Predicted_Price": "${:,.2f}"}),
+                            use_container_width=True,
+                        )
 
-                csv_out = result.to_csv(index=False).encode("utf-8")
-                st.download_button(
-                    "Download Results",
-                    csv_out,
-                    "churn_predictions.csv",
-                    "text/csv",
-                )
-        else:
-            st.info("No file uploaded yet.")
+                        csv_out = result.to_csv(index=False)
+                        st.download_button(
+                            "📥 Download Results",
+                            csv_out,
+                            "predictions.csv",
+                            "text/csv",
+                        )
+
+                        col_a, col_b, col_c = st.columns(3)
+                        col_a.metric("Avg Price", f"${predictions.mean():,.0f}")
+                        col_b.metric("Min Price", f"${predictions.min():,.0f}")
+                        col_c.metric("Max Price", f"${predictions.max():,.0f}")
+
+            except Exception as e:
+                st.error(f"Error reading file: {e}")
 
 
 # ══════════════════════════════════════════════
 # TAB 3 — DATA & MODEL INSIGHTS
 # ══════════════════════════════════════════════
-with tab_eda:
+with tab_insight:
+    st.header("📊 Data & Model Insights")
+    st.markdown("Explore the dataset and model performance.")
 
-    df = load_data()
-
-    st.title("📊 Data & Model Insights")
-    st.divider()
-
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Total Customers", len(df))
-    m2.metric("Features", df.shape[1] - 2)
-    m3.metric("Churn Rate", f"{df['churn'].mean()*100:.1f}%")
-    m4.metric("Countries", df["country"].nunique())
+    # ============ MODEL METRICS ============
+    st.subheader("Model Performance")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("RMSE", f"${metrics['rmse']:,.0f}")
+    col2.metric("MAE", f"${metrics['mae']:,.0f}")
+    col3.metric("R² Score", f"{metrics['r2']:.4f}")
 
     st.divider()
 
-    st.subheader("Filters")
-    selected_country = st.multiselect(
-        "Country",
-        options=df["country"].unique().tolist(),
-        default=df["country"].unique().tolist(),
+    # ============ DISTRIBUSI HARGA ============
+    st.subheader("Sale Price Distribution")
+    fig_dist = px.histogram(
+        df_house, x="SalePrice", nbins=50,
+        title="Distribution of House Prices",
+        labels={"SalePrice": "Sale Price (USD)"},
     )
-    df_f = df[df["country"].isin(selected_country)]
-
-    if df_f.empty:
-        st.warning("No data. Select at least one country.")
-        st.stop()
+    fig_dist.update_layout(showlegend=False)
+    st.plotly_chart(fig_dist, use_container_width=True)
 
     st.divider()
 
-    st.subheader("Churn Distribution")
-    col_a, col_b = st.columns(2)
+    # ============ KORELASI 12 FITUR DENGAN HARGA ============
+    st.subheader("Feature Correlation with Sale Price")
+    corr_data = df_house[FITUR + ["SalePrice"]].corr()["SalePrice"].drop("SalePrice")
+    corr_df = pd.DataFrame({
+        "Feature": corr_data.index,
+        "Correlation": corr_data.values,
+    }).sort_values("Correlation", ascending=True)
 
-    with col_a:
-        churn_counts = df_f["churn"].map({0: "Stay", 1: "Churn"}).value_counts().reset_index()
-        churn_counts.columns = ["Status", "Count"]
-        fig_pie = px.pie(
-            churn_counts,
-            names="Status", values="Count",
-            hole=0.4,
-            title="Overall Churn vs Stay",
-            color="Status",
-            color_discrete_map={"Stay": "#1D9E75", "Churn": "#E24B4A"},
-        )
-        st.plotly_chart(fig_pie, use_container_width=True)
-
-    with col_b:
-        by_country = df_f.groupby("country")["churn"].mean().reset_index()
-        by_country["churn"] = by_country["churn"] * 100
-        fig_bar = px.bar(
-            by_country,
-            x="country", y="churn",
-            text_auto=".1f",
-            title="Churn Rate by Country (%)",
-            labels={"churn": "Churn Rate (%)", "country": "Country"},
-        )
-        st.plotly_chart(fig_bar, use_container_width=True)
-
-    st.subheader("Feature Distribution")
-    num_cols = ["credit_score", "age", "tenure", "balance",
-                "products_number", "estimated_salary"]
-    feature = st.selectbox("Select a feature", num_cols)
-    fig_hist = px.histogram(
-        df_f,
-        x=feature,
-        color=df_f["churn"].map({0: "Stay", 1: "Churn"}),
-        nbins=30,
-        barmode="overlay",
-        opacity=0.7,
-        title=f"Distribution of {feature} by Churn Status",
-        labels={"color": "Status"},
-    )
-    st.plotly_chart(fig_hist, use_container_width=True)
-
-    st.subheader("Feature Correlation")
-    corr_df = df_f.drop(columns=["customer_id"]).copy()
-    corr_df["gender"] = corr_df["gender"].map({"Male": 1, "Female": 0})
-    corr_df = pd.get_dummies(corr_df, columns=["country"], drop_first=True)
-    corr = corr_df.corr()
-    fig_corr = px.imshow(
-        corr,
-        text_auto=".2f",
-        aspect="auto",
-        color_continuous_scale="RdBu_r",
-        title="Correlation Matrix",
+    fig_corr = px.bar(
+        corr_df, x="Correlation", y="Feature", orientation="h",
+        title="Correlation: Features vs Sale Price",
+        color="Correlation", color_continuous_scale="RdBu",
     )
     st.plotly_chart(fig_corr, use_container_width=True)
 
     st.divider()
 
-    st.subheader("Model Performance")
+    # ============ FEATURE IMPORTANCE ============
+    st.subheader("Feature Importance (Random Forest)")
+    fi_df = pd.DataFrame({
+        "Feature": list(feature_importance.keys()),
+        "Importance": list(feature_importance.values()),
+    }).sort_values("Importance", ascending=True)
 
-    p1, p2, p3, p4 = st.columns(4)
-    p1.metric("Accuracy", "0.84")
-    p2.metric("Recall", "0.65")
-    p3.metric("Precision", "0.60")
-    p4.metric("ROC-AUC", "0.86")
-
-    col_cm, col_fi = st.columns(2)
-
-    with col_cm:
-        st.write("**Confusion Matrix**")
-        cm = np.array([[1416, 177], [144, 263]])
-        fig_cm = px.imshow(
-            cm,
-            text_auto=True,
-            color_continuous_scale="Blues",
-            labels=dict(x="Predicted", y="Actual"),
-            x=["Stay", "Churn"], y=["Stay", "Churn"],
-            title="Confusion Matrix (Test Set)",
-        )
-        st.plotly_chart(fig_cm, use_container_width=True)
-
-    with col_fi:
-        st.write("**Feature Importance**")
-        importance = {
-            "age": 0.322, "products_number": 0.201, "balance": 0.119,
-            "estimated_salary": 0.084, "credit_score": 0.082,
-            "active_member": 0.051, "country_Germany": 0.051,
-            "tenure": 0.047, "gender": 0.022, "credit_card": 0.011,
-            "country_Spain": 0.011,
-        }
-        imp_df = pd.DataFrame({
-            "Feature": list(importance.keys()),
-            "Importance": list(importance.values()),
-        }).sort_values("Importance")
-        fig_imp = px.bar(
-            imp_df, x="Importance", y="Feature",
-            orientation="h",
-            title="What Drives Churn?",
-        )
-        st.plotly_chart(fig_imp, use_container_width=True)
+    fig_fi = px.bar(
+        fi_df, x="Importance", y="Feature", orientation="h",
+        title="Which features matter most for prediction",
+        color="Importance", color_continuous_scale="viridis",
+    )
+    st.plotly_chart(fig_fi, use_container_width=True)
 
     st.divider()
-    if st.checkbox("Show raw data"):
-        st.dataframe(df_f, use_container_width=True)
-        st.caption(f"{len(df_f)} rows · {df_f.shape[1]} columns")
+
+    # ============ PREDICTED VS ACTUAL ============
+    st.subheader("Predicted vs Actual Price")
+    pred_df = pd.DataFrame({"Actual": y_test, "Predicted": y_pred})
+
+    fig_scatter = px.scatter(
+        pred_df, x="Actual", y="Predicted",
+        title="Model Predictions vs True Values",
+        labels={"Actual": "Actual Price (USD)", "Predicted": "Predicted Price (USD)"},
+        opacity=0.6,
+    )
+    min_val = min(pred_df["Actual"].min(), pred_df["Predicted"].min())
+    max_val = max(pred_df["Actual"].max(), pred_df["Predicted"].max())
+    fig_scatter.add_trace(go.Scatter(
+        x=[min_val, max_val], y=[min_val, max_val],
+        mode="lines", name="Perfect Prediction",
+        line=dict(dash="dash", color="red"),
+    ))
+    st.plotly_chart(fig_scatter, use_container_width=True)
+
+    st.divider()
+
+    # ============ RESIDUAL PLOT ============
+    st.subheader("Residual Analysis")
+    pred_df["Residual"] = pred_df["Actual"] - pred_df["Predicted"]
+
+    fig_resid = px.scatter(
+        pred_df, x="Predicted", y="Residual",
+        title="Residuals: how far predictions are from actual",
+        labels={"Predicted": "Predicted Price (USD)", "Residual": "Error (USD)"},
+        opacity=0.6,
+    )
+    fig_resid.add_hline(y=0, line_dash="dash", line_color="red")
+    st.plotly_chart(fig_resid, use_container_width=True)

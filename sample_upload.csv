@@ -1,11 +1,6 @@
-customer_id,credit_score,country,gender,age,tenure,balance,products_number,credit_card,active_member,estimated_salary
-15634602,619,France,Female,42,2,0.0,1,1,1,101348.88
-15647311,608,Spain,Female,41,1,83807.86,1,0,1,112542.58
-15619304,502,France,Female,42,8,159660.8,3,1,0,113931.57
-15701354,699,France,Female,39,1,0.0,2,0,0,93826.63
-15737888,850,Spain,Female,43,2,125510.82,1,1,1,79084.1
-15574012,645,Spain,Male,44,8,113755.78,2,1,0,149756.71
-15592531,822,France,Male,50,7,0.0,2,1,1,10062.8
-15656148,376,Germany,Female,29,4,115046.74,4,1,0,119346.88
-15792365,501,France,Male,44,4,142051.07,2,0,1,74940.5
-15592389,684,France,Male,27,2,134603.88,1,1,1,71725.73
+OverallQual,GrLivArea,GarageCars,GarageArea,TotalBsmtSF,1stFlrSF,FullBath,YearBuilt,YearRemodAdd,TotRmsAbvGrd,Fireplaces,LotArea
+7,1710,2,548,856,856,2,2003,2003,8,0,8450
+6,1262,2,460,1262,1262,2,1976,1976,6,1,9600
+7,1786,2,608,920,920,2,2001,2002,6,1,11250
+7,1717,3,642,756,961,1,1915,1970,7,1,9550
+8,2198,3,836,1145,1145,2,2000,2000,9,1,14260
