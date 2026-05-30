@@ -136,7 +136,7 @@ with tab_home:
             st.write("RMSE **$29.8K** · R² **0.88**")
             st.info("👉 Try it in the **🤖 House Price Predictor** tab.")
 
-     with p2:
+    with p2:
         with st.container(border=True):
             st.markdown("### 📉 Bank Customer Churn")
             st.write("""
@@ -146,7 +146,6 @@ with tab_home:
             Predictor tab.
             """)
             st.write("Recall **0.65** · ROC-AUC **0.86**")
-
 
     with p3:
         with st.container(border=True):
