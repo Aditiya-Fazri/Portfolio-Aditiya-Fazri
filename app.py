@@ -156,7 +156,6 @@ with tab_home:
             predictions to see how close it got.
             """)
             st.write("Hybrid **CB + CF**")
-            st.caption("Recommender · scikit-learn")
 
 
 # ══════════════════════════════════════════════
