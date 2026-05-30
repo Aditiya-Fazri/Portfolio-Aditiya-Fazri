@@ -136,16 +136,17 @@ with tab_home:
             st.write("RMSE **$29.8K** · R² **0.88**")
             st.info("👉 Try it in the **🤖 House Price Predictor** tab.")
 
-    with p2:
+     with p2:
         with st.container(border=True):
-            st.markdown("### 📈 LSTM Stock Prediction")
+            st.markdown("### 📉 Bank Customer Churn")
             st.write("""
-            A time series model that predicts stock closing prices using LSTM, built
-            with TensorFlow. The tricky part was getting the data windowing right so
-            the model learns from the right sequence.
+            I built a model to spot which bank customers are about to leave. Worked
+            with 10,000 records, cleaned the data, tried a few models, and checked
+            which features matter most. You can test the live version in the Churn
+            Predictor tab.
             """)
-            st.write("MAPE **under 3%**")
-            st.caption("Deep Learning · TensorFlow · Time Series")
+            st.write("Recall **0.65** · ROC-AUC **0.86**")
+
 
     with p3:
         with st.container(border=True):
