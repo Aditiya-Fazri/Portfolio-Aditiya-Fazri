@@ -128,10 +128,9 @@ with tab_home:
         with st.container(border=True):
             st.markdown("### 🏠 House Price Prediction")
             st.write("""
-            I built a regression model that predicts house sale prices using the
-            Kaggle House Prices dataset. Cleaned messy real-world data with missing
-            values, picked the most useful features, and tuned a Random Forest to
-            get the lowest error. You can test the live version in the Predictor tab.
+            A house price prediction model trained on the Kaggle House Prices dataset.
+            12 features, Random Forest, around $30K average error. You can try it live
+            in the Predictor tab.
             """)
             st.write("RMSE **$29.8K** · R² **0.88**")
             st.info("👉 Try it in the **🤖 House Price Predictor** tab.")
