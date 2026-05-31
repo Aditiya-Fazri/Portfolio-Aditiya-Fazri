@@ -139,20 +139,18 @@ with tab_home:
         with st.container(border=True):
             st.markdown("### 📉 Bank Customer Churn")
             st.write("""
-            I built a model to spot which bank customers are about to leave. Worked
-            with 10,000 records, cleaned the data, tried a few models, and checked
-            which features matter most. You can test the live version in the Churn
-            Predictor tab.
+            A classification model that flags bank customers likely to churn. Trained
+            on 10,000 records, tried Random Forest, SVM, and a few other classifiers.
             """)
             st.write("Recall **0.65** · ROC-AUC **0.86**")
 
     with p3:
         with st.container(border=True):
-            st.markdown("### 🎬 Recommendation System")
+            st.markdown("### 🎬 Movie Recommendation System")
             st.write("""
-            A recommender that mixes content-based and collaborative filtering to
-            suggest items a user might like. Tested with RMSE on the rating
-            predictions to see how close it got.
+            Built a recommender combining content-based and collaborative filtering.
+            The CB part uses item similarity, the CF part uses user-rating matrix.
+            Evaluated with RMSE on predicted ratings.
             """)
             st.write("Hybrid **CB + CF**")
 
@@ -163,8 +161,7 @@ with tab_home:
 with tab_predict:
     st.header("🏠 House Price Predictor")
     st.markdown(
-        "Predict house sale price based on property features. "
-        "Use single mode for one prediction, or batch mode for multiple houses via CSV."
+        "Predict house sale price. Single mode for one property, batch mode for multiple via CSV."
     )
 
     mode = st.radio(
@@ -289,7 +286,6 @@ with tab_predict:
 # ══════════════════════════════════════════════
 with tab_insight:
     st.header("📊 Data & Model Insights")
-    st.markdown("Explore the dataset and model performance.")
 
     # ============ MODEL METRICS ============
     st.subheader("Model Performance")
